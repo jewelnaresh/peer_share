@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useWebsocket } from "./websocket";
+import "./App.css";
 
 type AppStates = "initializing" | "connected" | "closed";
 
