@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useWebsocket } from "./websocket";
 
 type AppStates = "initializing" | "connected" | "closed";
 
@@ -33,8 +34,14 @@ function App() {
     useState<AppStates>("initializing");
   // const [iceCandidates, setIceCandidates] = useState<(RTCIceCandidate | null)[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
+  const [connectUrl, setConnectionUrl] = useState("");
+
+  const [ws, wsId] = useWebsocket();
+
+  const baseUrl = `${window.location.protocol}//${window.location.host}`
 
   useEffect(() => {
+    // Setup WebRTC connection
     dataChannel.onmessage = (event) => {
       setCurrentMessage(event.data);
     };
@@ -45,7 +52,7 @@ function App() {
       // if (event.candidate) {
       //   setIceCandidates(prev => [...prev, event.candidate])
       // }
-      setOffer(localConnection.localDescription)
+      setOffer(localConnection.localDescription);
       if (localConnection.iceGatheringState === "complete") {
         setOffer(localConnection.localDescription);
       }
@@ -62,6 +69,7 @@ function App() {
       iceRestart: true,
     });
     await localConnection.setLocalDescription(offer);
+    setConnectionUrl(`${baseUrl}/${wsId}`);
   };
 
   const handleConnectToPeer = async () => {
@@ -110,6 +118,7 @@ function App() {
         <div className="">
           <h1>Creat connection</h1>
           <p>Local connection Offer</p>
+          <p>Url: {connectUrl}</p>
           <p>{JSON.stringify(offer)}</p>
           <button onClick={handleCreateOffer}>Create Offer</button>
           {offer && (
