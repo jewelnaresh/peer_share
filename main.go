@@ -12,8 +12,7 @@ import (
 
 func main() {
 
-	peers := make(map[uuid.UUID]*websocket.Conn)
-
+	transportChannels := make(map[uuid.UUID]*TransportChannel)
 	app := fiber.New()
 
 	app.Static("/", "./frontend/dist")
@@ -27,18 +26,10 @@ func main() {
 	})
 
 	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
-		id := uuid.New()
 
 		defer func() {
-			delete(peers, id)
 			c.Close()
 		}()
-
-		peers[id] = c
-		payload, _ := json.Marshal(requests.InitResponse{Id: id})
-
-		data := requests.WebsocketData{MessageType: requests.InitializeConnection, Payload: payload}
-		c.WriteJSON(data)
 
 		var (
 			messageType int
@@ -59,6 +50,13 @@ func main() {
 				}
 
 				switch data.MessageType {
+				case requests.InitializeConnection:
+					id := uuid.New()
+					tc := NewTransportChannel(c)
+					transportChannels[id] = tc
+
+					payload, _ := json.Marshal(requests.InitResponse{TransportChannelId: id})
+					c.WriteJSON(requests.WebsocketData{MessageType: requests.InitializeConnection, Payload: payload})
 				case requests.ConnectPeer:
 					var connectRequest requests.ConnectRequest
 					if err := json.Unmarshal(data.Payload, &connectRequest); err != nil {
@@ -66,18 +64,28 @@ func main() {
 						break
 					}
 
-					if err = peers[connectRequest.Id].WriteJSON(requests.WebsocketData{MessageType: requests.GetOffer}); err != nil {
-						log.Println("write:", err)
-						break
-					}
-
-				case requests.RelayOffer:
-					var relayOfferRequest requests.RelayOfferRequest
-					if err := json.Unmarshal(data.Payload, &relayOfferRequest); err != nil {
+					tc := transportChannels[connectRequest.TransportChannelId]
+					if tc.isConnected() {
 						log.Println("Invalid request", err)
 						break
 					}
+					tc.connectConnector(c)
 
+					tc.Receiver.WriteJSON(requests.WebsocketData{
+						MessageType: requests.ReceiveOffer,
+						Payload:     data.Payload,
+					})
+				case requests.ReceiveAnswer:
+					var connectRequest requests.ConnectRequest
+					if err := json.Unmarshal(data.Payload, &connectRequest); err != nil {
+						log.Println("Invalid request", err)
+						break
+					}
+					tc := transportChannels[connectRequest.TransportChannelId]
+					tc.Connector.WriteJSON(requests.WebsocketData{
+						MessageType: requests.ReceiveAnswer,
+						Payload:     data.Payload,
+					})
 				}
 			}
 		}
