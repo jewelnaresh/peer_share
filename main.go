@@ -86,6 +86,28 @@ func main() {
 						MessageType: requests.ReceiveAnswer,
 						Payload:     data.Payload,
 					})
+				case requests.AddConnectorICECandidate:
+					var addICECandidateRequest requests.AddICECandidateRequest
+					if err := json.Unmarshal(data.Payload, &addICECandidateRequest); err != nil {
+						log.Panicln("Invalid request", err)
+						continue
+					}
+					tc := transportChannels[addICECandidateRequest.TransportChannelId]
+					tc.Receiver.WriteJSON(requests.WebsocketData{
+						MessageType: requests.ReceiveICECandidate,
+						Payload:     data.Payload,
+					})
+				case requests.AddReceiverICECandidate:
+					var addICECandidateRequest requests.AddICECandidateRequest
+					if err := json.Unmarshal(data.Payload, &addICECandidateRequest); err != nil {
+						log.Panicln("Invalid request", err)
+						continue
+					}
+					tc := transportChannels[addICECandidateRequest.TransportChannelId]
+					tc.Connector.WriteJSON(requests.WebsocketData{
+						MessageType: requests.ReceiveICECandidate,
+						Payload:     data.Payload,
+					})
 				}
 			}
 		}
