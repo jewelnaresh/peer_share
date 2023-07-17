@@ -5,6 +5,9 @@ export const messageTypes = {
   connectPeer: "CONNECT_PEER",
   receiveOffer: "RECEIVE_OFFER",
   receiveAnswer: "RECEIVE_ANSWER",
+  addConnectorICECandidate: "ADD_CONNECTOR_ICE_CANDIDATE",
+  addReceiverICECandidate: "ADD_RECEIVER_ICE_CANDIDATE",
+  receiveICECandidate: "RECEIVE_ICE_CANDIDATE",
 };
 
 export interface InitPayload {
@@ -14,6 +17,11 @@ export interface InitPayload {
 export interface connectionRequest {
   transportChannelId: string;
   SDP: string;
+}
+
+export interface addICECandidateRequest {
+  transportChannelId: string;
+  ICECandidate: string;
 }
 
 export interface WsData<T> {
@@ -26,70 +34,19 @@ export type onMessageEventListeners = (
   ev: MessageEvent<string>
 ) => void;
 
-export const useWebsocket = (
-  setTransportChannelId: React.Dispatch<
-    React.SetStateAction<string | null | undefined>
-  >,
-  setPeerConnection: React.Dispatch<
-    React.SetStateAction<RTCPeerConnection | null>
-  >,
-  RTCServerConfig: RTCConfiguration
-) => {
-  const [ws, setWs] = useState<WebSocket | null>(null);
+export const useWebsocket = () => {
+  const [ws, setWs] = useState<WebSocket>();
 
   // Setup Websocket connection
   useEffect(() => {
-
     const connection = new WebSocket("ws:127.0.0.1:3000/ws");
     setWs(connection);
 
-    const handleOnMessage = async (e: MessageEvent<string>) => {
-      const data: WsData<unknown> = JSON.parse(e.data);
-      switch (data.messageType) {
-        case messageTypes.initConnection: {
-          const payload = data.payload as InitPayload;
-          setTransportChannelId(payload.transportChannelId);
-          break;
-        }
-        case messageTypes.receiveOffer: {
-          const payload = data.payload as connectionRequest;
-          const peerConn = new RTCPeerConnection(RTCServerConfig);
-          setPeerConnection(peerConn);
-
-          const parsedOffer = JSON.parse(payload.SDP);
-          peerConn.setRemoteDescription(new RTCSessionDescription(parsedOffer));
-
-          const answer = await peerConn.createAnswer({
-            offerToReceiveAudio: true,
-            iceRestart: true,
-          });
-          await peerConn.setLocalDescription(answer);
-
-          const answerData: WsData<connectionRequest> = {
-            messageType: messageTypes.receiveAnswer,
-            payload: {
-              transportChannelId: payload.transportChannelId,
-              SDP: JSON.stringify(answer),
-            },
-          };
-          connection.send(JSON.stringify(answerData));
-          break;
-        }
-
-        default:
-          break;
-      }
-    };
-
-    connection.addEventListener("message", handleOnMessage);
-
-
     return () => {
-      connection.removeEventListener("message", handleOnMessage);
       connection.close();
-      setWs(null);
+      setWs(undefined);
     };
-  }, [RTCServerConfig, setPeerConnection, setTransportChannelId]);
+  }, []);
 
   return ws;
 };
